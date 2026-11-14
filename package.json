@@ -1,16 +1,23 @@
 {
   "name": "@dakotajp/hopper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Feeds your queued tasks to agents, a few at a time, as they become ready.",
   "license": "MIT",
   "author": "Dakota Parker",
   "type": "module",
-  "bin": { "hopper": "src/cli.ts" },
-  "engines": { "node": ">=24" },
+  "bin": {
+    "hopper": "src/cli.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "test": "node --test 'src/**/*.spec.ts'",
     "typecheck": "tsc --noEmit",
     "build": "node src/build.ts"
   },
-  "devDependencies": { "typescript": "^5.9.3", "@types/node": "^24.0.0" }
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^24.0.0"
+  }
 }

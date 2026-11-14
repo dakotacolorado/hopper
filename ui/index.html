@@ -36,6 +36,17 @@
 </main>
 <script type="module">
 const KEY = "hopper-token";
+
+// Signed in from the workplace UI: a link whose address ends #signin=<token> (after any route,
+// as #/x&signin=<token>) stores the token, as signing in here would, and drops it from the address.
+{
+  const given = /(?:^#|&)signin=([^&]+)/.exec(location.hash);
+  if (given) {
+    localStorage.setItem(KEY, decodeURIComponent(given[1]));
+    const rest = location.hash.replace(/(?:^#|&)signin=[^&]+/, "").replace(/^#?&/, "#");
+    history.replaceState(null, "", location.pathname + location.search + (rest.length > 1 ? rest : ""));
+  }
+}
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); for (const k of kids) e.append(k); return e; };
 async function call(method, path, body) {
