@@ -1,0 +1,55 @@
+# hopper
+
+**Feeds your queued tasks to agents, a few at a time, as they become ready.**
+
+You queue tasks from [waypoint](https://github.com/dakotacolorado/waypoint), in
+the order you want them done, and set how many may run at once. Every 30
+seconds hopper takes the next queued task that waypoint says is ready (open,
+nothing it depends on still open, nobody assigned), asks
+[agency](https://github.com/dakotacolorado/agency) for an agent on it (an
+`implementer` unless you queued it with another role) with a brief built from
+the task, and assigns the task to that agent. agency still decides when each
+agent actually starts, by usage and room on a host. A task hopper started counts
+against the limit until waypoint shows it `done` or `cancelled`.
+
+hopper keeps only its queue; tasks stay waypoint's and agents agency's.
+
+## Run it
+
+Node 24, no runtime dependencies:
+
+```sh
+HOPPER_TOKEN=… WAYPOINT_URL=… WAYPOINT_TOKEN=… AGENCY_URL=… AGENCY_TOKEN=… node src/cli.ts
+```
+
+| Environment | Default | |
+| --- | --- | --- |
+| `HOPPER_TOKEN` | required | the bearer token every call but `/health` and the page presents |
+| `WAYPOINT_URL`, `WAYPOINT_TOKEN` | required | where tasks are read and assigned |
+| `AGENCY_URL`, `AGENCY_TOKEN` | required | where agents are asked for |
+| `HOPPER_DB` | `~/.local/share/hopper/hopper.db` | its SQLite file |
+| `HOPPER_HOST`, `HOPPER_PORT` | `127.0.0.1`, `5000` | where it listens |
+| `HOPPER_EVERY` | `30` | seconds between looks |
+
+## API
+
+The page at `/` does all of this.
+
+| | |
+| --- | --- |
+| `GET /health` | `{ok, version, commit}`, no token |
+| `GET /queue` | `{limit, entries}`: queued first in order, then started, finished and dropped, each with why it waits |
+| `POST /queue` `{taskId, role?, before?}` | queue a task at the back, or before another queued one; queuing it again moves it |
+| `DELETE /queue/{taskId}` | take a queued task out |
+| `PUT /limit` `{limit}` | how many it keeps running at once (0–50; 0 pauses it) |
+| `POST /tick` | look now |
+
+## Developing
+
+```sh
+npm install
+npm test
+npm run typecheck
+```
+
+MIT licensed.

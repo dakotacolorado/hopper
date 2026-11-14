@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hopper</title>
+<style>
+  :root { --bg:#f7f7f5; --panel:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e3e2dc; --p:#2f6f5e; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --panel:#1f1f1d; --ink:#ecebe6; --muted:#9b9a93; --line:#34332f; --p:#7fcfb6; } }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width:880px; margin:0 auto; padding:20px; }
+  h1 { margin:0; color:var(--p); } p.tag { color:var(--muted); margin:2px 0 18px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:16px; }
+  table { width:100%; border-collapse:collapse; } td, th { text-align:left; padding:8px 6px; border-top:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; border-top:0; } .muted { color:var(--muted); font-size:13px; }
+  input, button { font:inherit; padding:8px 10px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--ink); }
+  button.primary { background:var(--p); color:var(--bg); border:0; } form { display:flex; gap:8px; flex-wrap:wrap; }
+  .state { font-size:12px; font-weight:600; padding:1px 8px; border-radius:999px; border:1px solid var(--line); }
+</style>
+</head>
+<body>
+<main>
+  <h1>hopper</h1>
+  <p class="tag">Feeds your queued tasks to agents, a few at a time, as they become ready.</p>
+  <div class="panel" id="signin" hidden>
+    <form id="signinForm"><input id="token" type="password" placeholder="hopper token" autocomplete="off" required><button class="primary">Sign in</button></form>
+  </div>
+  <div id="app" hidden>
+    <div class="panel">
+      <form id="add"><input id="taskId" placeholder="waypoint task id" required style="flex:1"><input id="role" placeholder="role (implementer)" style="width:170px"><button class="primary">Queue</button></form>
+      <p class="muted" id="limitLine"></p>
+      <form id="limitForm"><label>Run at most <input id="limit" type="number" min="0" max="50" style="width:70px"> at once</label><button>Save</button><button type="button" id="now">Look now</button></form>
+    </div>
+    <div class="panel"><table><thead><tr><th>Task</th><th>State</th><th>Agent</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+  </div>
+</main>
+<script type="module">
+const KEY = "hopper-token";
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); for (const k of kids) e.append(k); return e; };
+async function call(method, path, body) {
+  const res = await fetch(path, { method, headers: { authorization: `Bearer ${localStorage.getItem(KEY)}`, ...(body && { "content-type": "application/json" }) }, body: body && JSON.stringify(body) });
+  if (res.status === 401) { localStorage.removeItem(KEY); show(); throw new Error("signed out"); }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message ?? res.status);
+  return data;
+}
+async function load() {
+  const { limit, entries } = await call("GET", "/queue");
+  $("limit").value = limit;
+  const running = entries.filter((e) => e.state === "started").length;
+  $("limitLine").textContent = `${running} running of ${limit}; ${entries.filter((e) => e.state === "queued").length} queued.`;
+  $("rows").replaceChildren(...entries.map((e) => {
+    const out = el("button", {}, e.state === "queued" ? "Remove" : "Queue again");
+    out.onclick = async () => { await (e.state === "queued" ? call("DELETE", `/queue/${encodeURIComponent(e.taskId)}`) : call("POST", "/queue", { taskId: e.taskId, role: e.role })); load(); };
+    return el("tr", {}, el("td", {}, el("div", {}, e.taskId.slice(0, 8)), el("div", { class: "muted" }, e.role)), el("td", {}, el("span", { class: "state" }, e.state), el("div", { class: "muted" }, e.note ?? "")), el("td", {}, e.agentName ?? ""), el("td", {}, out));
+  }));
+}
+function show() {
+  const on = Boolean(localStorage.getItem(KEY));
+  $("signin").hidden = on; $("app").hidden = !on;
+  if (on) load().catch(() => {});
+}
+$("signinForm").onsubmit = (ev) => { ev.preventDefault(); localStorage.setItem(KEY, $("token").value); show(); };
+$("add").onsubmit = async (ev) => { ev.preventDefault(); await call("POST", "/queue", { taskId: $("taskId").value.trim(), ...($("role").value.trim() && { role: $("role").value.trim() }) }).catch((err) => alert(err.message)); $("taskId").value = ""; load(); };
+$("limitForm").onsubmit = async (ev) => { ev.preventDefault(); await call("PUT", "/limit", { limit: Number($("limit").value) }).catch((err) => alert(err.message)); load(); };
+$("now").onclick = async () => { await call("POST", "/tick"); load(); };
+show();
+setInterval(() => localStorage.getItem(KEY) && load().catch(() => {}), 10000);
+</script>
+</body>
+</html>
