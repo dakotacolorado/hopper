@@ -12,17 +12,17 @@ the task, and assigns the task to that agent. agency still decides when each
 agent actually starts, by usage and room on a host. A task hopper started counts
 against the limit until waypoint shows it `done` or `cancelled`.
 
-hopper keeps only its queue; tasks stay waypoint's and agents agency's.
-
 ## Run it
 
-Node 24, no runtime dependencies:
+Node 24 or later:
 
 ```sh
 HOPPER_TOKEN=… WAYPOINT_URL=… WAYPOINT_TOKEN=… AGENCY_URL=… AGENCY_TOKEN=… node src/cli.ts
 ```
 
-| Environment | Default | |
+## Configure it
+
+| Environment | Default | What it does |
 | --- | --- | --- |
 | `HOPPER_TOKEN` | required | the bearer token every call but `/health` and the page presents |
 | `WAYPOINT_URL`, `WAYPOINT_TOKEN` | required | where tasks are read and assigned |
@@ -31,9 +31,10 @@ HOPPER_TOKEN=… WAYPOINT_URL=… WAYPOINT_TOKEN=… AGENCY_URL=… AGENCY_TOKEN
 | `HOPPER_HOST`, `HOPPER_PORT` | `127.0.0.1`, `5000` | where it listens |
 | `HOPPER_EVERY` | `30` | seconds between looks |
 
-## API
+## Use it
 
-The page at `/` does all of this.
+The page at `/` does all of this. From a script, send
+`Authorization: Bearer $HOPPER_TOKEN`:
 
 | | |
 | --- | --- |
@@ -44,7 +45,12 @@ The page at `/` does all of this.
 | `PUT /limit` `{limit}` | how many it keeps running at once (0–50; 0 pauses it) |
 | `POST /tick` | look now |
 
-## Developing
+```sh
+curl -X POST http://127.0.0.1:5000/queue -H "Authorization: Bearer $HOPPER_TOKEN" \
+  -H 'content-type: application/json' -d '{"taskId": "<task id>"}'
+```
+
+## Develop it
 
 ```sh
 npm install
@@ -52,4 +58,6 @@ npm test
 npm run typecheck
 ```
 
-MIT licensed.
+## License
+
+MIT. See [LICENSE](./LICENSE).
