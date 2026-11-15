@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Hopper, type Task, type Upstreams } from "./hopper.ts";
+import { Hopper, httpUpstreams, type Task, type Upstreams } from "./hopper.ts";
+import { createServer } from "node:http";
 import { serveHopper } from "./server.ts";
 
 function fake(tasks: Record<string, Partial<Task>>) {
-  const requested: { role: string; taskId: string }[] = [];
+  const requested: { role: string; taskId: string; labels: string[] }[] = [];
   const assigned: Record<string, string> = {};
   let n = 0;
   const up: Upstreams = {
@@ -16,8 +17,8 @@ function fake(tasks: Record<string, Partial<Task>>) {
     async assign(taskId, name) {
       assigned[taskId] = name;
     },
-    async request(role, _brief, taskId) {
-      requested.push({ role, taskId });
+    async request(role, _brief, taskId, labels) {
+      requested.push({ role, taskId, labels });
       const id = `req${++n}0000000`;
       return { id, name: `${role}-${id.slice(0, 8)}` };
     },
@@ -88,5 +89,44 @@ test("its API needs the token, but not for health", async () => {
   } finally {
     server.close();
     h.close();
+  }
+});
+
+test("asks for a worker on a host carrying the task's metadata.hostLabels; a malformed one keeps its place", async () => {
+  const f = fake({ gpu: { metadata: { hostLabels: ["rtx-4090"] } }, plain: {}, empty: { metadata: {} }, bad: { metadata: { hostLabels: "rtx-4090" } }, blank: { metadata: { hostLabels: [""] } } });
+  const h = new Hopper(":memory:", f.up);
+  h.limit = 5;
+  for (const id of ["bad", "gpu", "plain", "empty", "blank"]) h.queue(id);
+  await h.tick();
+  assert.deepEqual(f.requested.map((r) => [r.taskId, r.labels]), [["gpu", ["rtx-4090"]], ["plain", []], ["empty", []]]);
+  for (const id of ["bad", "blank"]) {
+    assert.equal(h.get(id)?.state, "queued");
+    assert.equal(h.get(id)?.note, "waits: metadata.hostLabels must be a list of host labels");
+  }
+  assert.equal(h.list()[0]?.taskId, "bad", "it keeps its place");
+});
+
+test("sends labels to agency only when there are some", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const agency = createServer((req, res) => {
+    let text = "";
+    req.on("data", (c) => (text += c));
+    req.on("end", () => {
+      bodies.push(JSON.parse(text) as Record<string, unknown>);
+      res.writeHead(201, { "content-type": "application/json" }).end(JSON.stringify({ id: `req${bodies.length}0000000` }));
+    });
+  });
+  await new Promise<void>((r) => agency.listen(0, "127.0.0.1", r));
+  const url = `http://127.0.0.1:${(agency.address() as { port: number }).port}`;
+  try {
+    const up = httpUpstreams({ url, token: "w" }, { url, token: "a" });
+    await up.request("implementer", "brief", "t1", ["rtx-4090"]);
+    await up.request("implementer", "brief", "t2", []);
+    assert.deepEqual(bodies, [
+      { role: "implementer", brief: "brief", item: "t1", labels: ["rtx-4090"] },
+      { role: "implementer", brief: "brief", item: "t2" },
+    ]);
+  } finally {
+    agency.close();
   }
 });
