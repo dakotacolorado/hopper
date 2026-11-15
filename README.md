@@ -45,8 +45,10 @@ The page at `/` does all of this. From a script, send
 | `PUT /limit` `{limit}` | how many it keeps running at once (0–50; 0 pauses it) |
 | `POST /tick` | look now |
 
+Queue a task, with `HOPPER_URL` set to its address:
+
 ```sh
-curl -X POST http://127.0.0.1:5000/queue -H "Authorization: Bearer $HOPPER_TOKEN" \
+curl -X POST "$HOPPER_URL/queue" -H "Authorization: Bearer $HOPPER_TOKEN" \
   -H 'content-type: application/json' -d '{"taskId": "<task id>"}'
 ```
 
