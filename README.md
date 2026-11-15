@@ -12,6 +12,10 @@ the task, and assigns the task to that agent. agency still decides when each
 agent actually starts, by usage and room on a host. A task hopper started counts
 against the limit until waypoint shows it `done` or `cancelled`.
 
+A task's `metadata.hostLabels` in waypoint, a list of agency host labels,
+becomes its request's host labels, so its agent starts only on a host carrying
+them all; a task whose `hostLabels` is not such a list waits, saying why.
+
 ## Run it
 
 Node 24 or later:

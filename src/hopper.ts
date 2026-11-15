@@ -9,6 +9,8 @@ export interface Task {
   ready: boolean;
   assignee: string | null;
   criteria: { id: string; text: string; met: boolean }[];
+  /** Loose data waypoint stores for tools like hopper; `hostLabels` is the only key read. */
+  metadata?: Record<string, unknown>;
 }
 
 /** One task in the queue, and what hopper did with it. */
@@ -29,8 +31,11 @@ export interface Entry {
 export interface Upstreams {
   task(id: string): Promise<Task | null>;
   assign(taskId: string, agentName: string): Promise<void>;
-  /** Asks agency for an agent in `role` on the task; agency starts it when usage and a host allow. */
-  request(role: string, brief: string, taskId: string): Promise<{ id: string; name: string }>;
+  /**
+   * Asks agency for an agent in `role` on the task; agency starts it when usage and a host allow,
+   * on a host carrying every one of `labels`.
+   */
+  request(role: string, brief: string, taskId: string, labels: string[]): Promise<{ id: string; name: string }>;
 }
 
 export const DEFAULT_ROLE = "implementer";
@@ -53,6 +58,19 @@ export function briefFor(task: Task): string {
     "Move it to `in_progress` as you start. Mark each criterion met once you have seen it hold yourself. When your change is submitted, move the task to `review` and say so with your status; the person closes it.",
   );
   return lines.join("\n");
+}
+
+/**
+ * The agency host labels a task's worker needs: its `metadata.hostLabels`, `[]` when it has none.
+ * Throws when `hostLabels` is there but is not a list of non-empty strings.
+ */
+export function hostLabelsOf(task: Task): string[] {
+  const value = task.metadata?.hostLabels;
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || !value.every((l) => typeof l === "string" && l.length > 0)) {
+    throw new TypeError("metadata.hostLabels must be a list of host labels");
+  }
+  return value as string[];
 }
 
 export class Hopper {
@@ -171,8 +189,15 @@ export class Hopper {
           this.set(entry.taskId, { note: "waits: blocked by another task" });
           continue;
         }
+        let labels: string[];
         try {
-          const made = await this.up.request(entry.role, briefFor(task), task.id);
+          labels = hostLabelsOf(task);
+        } catch (err) {
+          this.set(entry.taskId, { note: `waits: ${(err as Error).message}` });
+          continue;
+        }
+        try {
+          const made = await this.up.request(entry.role, briefFor(task), task.id, labels);
           this.set(entry.taskId, { state: "started", note: null, requestId: made.id, agentName: made.name, startedAt: this.now().toISOString() });
           running++;
           await this.up.assign(task.id, made.name).catch(() => {});
@@ -225,8 +250,9 @@ export function httpUpstreams(waypoint: { url: string; token: string }, agency: 
       const res = await call(waypoint, "PATCH", `/tasks/${encodeURIComponent(taskId)}`, { assignee: agentName }, { "x-actor": actor });
       if (res.status !== 200) throw new Error(`UpdateTask answered ${res.status}`);
     },
-    async request(role, brief, taskId) {
-      const res = await call(agency, "POST", "/requests", { role, brief, item: taskId }, { "claimed-by": actor });
+    async request(role, brief, taskId, labels) {
+      const body = { role, brief, item: taskId, ...(labels.length > 0 && { labels }) };
+      const res = await call(agency, "POST", "/requests", body, { "claimed-by": actor });
       if (res.status !== 200 && res.status !== 201 && res.status !== 202) throw new Error(`CreateRequest answered ${res.status}: ${String(res.json.message ?? "")}`);
       const id = res.json.id as string;
       return { id, name: `${role.slice(0, 31)}-${id.slice(0, 8)}` };
