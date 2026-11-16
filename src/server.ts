@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { Conflict, type Hopper } from "./hopper.ts";
+import { LETTERS_ONLY, MARK_ICON, MARK_PIXELS, MARK_SVG, SUMMARY, TAGLINE } from "./banner.ts";
 
 export interface About {
   version: string;
@@ -9,11 +10,16 @@ export interface About {
 }
 
 const PAGE = new URL("../ui/index.html", import.meta.url);
+// The page's words and mark are banner.ts's own, so the terminal, the page and the tab cannot differ.
+const BANNER_JS = Object.entries({ LETTERS: LETTERS_ONLY, MARK_PIXELS, MARK_SVG, TAGLINE, SUMMARY })
+  .map(([name, value]) => `export const ${name} = ${JSON.stringify(value)};\n`)
+  .join("");
 
 /**
  * hopper's API, for the person and the workplace UI:
  *   GET /health                     {ok, version, commit}, without a token
  *   GET /                           the page
+ *   GET /ui/mark.svg, /ui/banner.js the page's favicon and its words and mark, without a token
  *   GET /queue                      {limit, entries}
  *   POST /queue {taskId, role?, before?}   queue a task (again: move it)
  *   DELETE /queue/{taskId}          take a queued task out
@@ -37,6 +43,8 @@ export function serveHopper(hopper: Hopper, token: string, about: About): Server
       if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
         return void res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(readFileSync(PAGE));
       }
+      if (req.method === "GET" && url.pathname === "/ui/mark.svg") return void res.writeHead(200, { "content-type": "image/svg+xml; charset=utf-8" }).end(MARK_ICON);
+      if (req.method === "GET" && url.pathname === "/ui/banner.js") return void res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" }).end(BANNER_JS);
       if (!authorized(req)) return fail(401, "The bearer token is missing or unknown.");
       if (req.method === "GET" && url.pathname === "/queue") return send(200, { limit: hopper.limit, entries: hopper.list() });
       if (req.method === "POST" && url.pathname === "/queue") {
