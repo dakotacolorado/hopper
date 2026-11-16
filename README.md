@@ -1,6 +1,22 @@
 # hopper
 
-**Feeds your queued tasks to agents, a few at a time, as they become ready.**
+**Line up the work, and your agents take it from there.**
+
+```
+██╗  ██╗ ██████╗ ██████╗ ██████╗ ███████╗██████╗
+██║  ██║██╔═══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗     ████    ████
+███████║██║   ██║██████╔╝██████╔╝█████╗  ██████╔╝  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+██╔══██║██║   ██║██╔═══╝ ██╔═══╝ ██╔══╝  ██╔══██╗   ▀▀▀▄▄▄    ▄▄▄▀▀▀
+██║  ██║╚██████╔╝██║     ██║     ███████╗██║  ██║        ▀█  █▀
+╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝     ╚══════╝╚═╝  ╚═╝          ▀▀
+v0.2.0
+
+Line up the work, and your agents take it from there.
+Feeds your queued tasks to agents, a few at a time, as they become ready.
+
+  ▸ Page      https://hopper.example.com/
+  ▸ API       https://hopper.example.com/queue
+```
 
 You queue tasks from [waypoint](https://github.com/dakotacolorado/waypoint), in
 the order you want them done, and set how many may run at once. Every 30

@@ -4,12 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>hopper</title>
+<link rel="icon" type="image/svg+xml" href="./ui/mark.svg">
 <style>
-  :root { --bg:#f7f7f5; --panel:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e3e2dc; --p:#2f6f5e; color-scheme: light dark; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --panel:#1f1f1d; --ink:#ecebe6; --muted:#9b9a93; --line:#34332f; --p:#7fcfb6; } }
+  :root { --bg:#f7f7f5; --panel:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e3e2dc; --p:#3d7a1f; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --panel:#1f1f1d; --ink:#ecebe6; --muted:#9b9a93; --line:#34332f; --p:#9ad36a; } }
   body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--ink); }
   main { max-width:880px; margin:0 auto; padding:20px; }
-  h1 { margin:0; color:var(--p); } p.tag { color:var(--muted); margin:2px 0 18px; }
+  header { display:flex; align-items:center; padding:10px 20px; background:var(--panel); border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:center; gap:8px; font-weight:700; font-size:16px; color:var(--p); text-decoration:none; }
+  .brand svg { height:20px; width:auto; }
+  .wordmark { display:flex; align-items:flex-end; gap:1.4em; width:fit-content; color:var(--p); line-height:1; margin:8px 0 14px; font-size:clamp(5px, 1.3vw, 11px); }
+  .wordmark pre { margin:0; font:1em/1 ui-monospace, "Cascadia Mono", Menlo, monospace; white-space:pre; }
+  .wordmark svg { height:6em; width:auto; flex:none; }
+  p.tagline { font-size:17px; font-weight:600; margin:4px 0 2px; } p.summary { color:var(--muted); margin:0 0 18px; }
   .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:16px; }
   table { width:100%; border-collapse:collapse; } td, th { text-align:left; padding:8px 6px; border-top:1px solid var(--line); vertical-align:top; }
   th { color:var(--muted); font-weight:500; border-top:0; } .muted { color:var(--muted); font-size:13px; }
@@ -19,9 +26,11 @@
 </style>
 </head>
 <body>
+<header><a class="brand" href="./"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" viewBox="0 0 40 30"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="8" y="1" width="6" height="6" rx="1" fill="var(--panel)"/><rect x="26" y="1" width="6" height="6" rx="1" fill="var(--panel)"/><path d="M1 10H39L24 19V23H16V19Z" fill="var(--panel)" stroke="none"/><path d="M16 23V19L1 10H39L24 19V23"/><rect x="17.5" y="25" width="5" height="4" rx="1" fill="var(--panel)"/></g></svg>hopper</a></header>
 <main>
-  <h1>hopper</h1>
-  <p class="tag">Feeds your queued tasks to agents, a few at a time, as they become ready.</p>
+  <div class="wordmark" id="wordmark" aria-label="hopper"></div>
+  <p class="tagline" id="tagline"></p>
+  <p class="summary" id="summary"></p>
   <div class="panel" id="signin" hidden>
     <form id="signinForm"><input id="token" type="password" placeholder="hopper token" autocomplete="off" required><button class="primary">Sign in</button></form>
   </div>
@@ -35,6 +44,7 @@
   </div>
 </main>
 <script type="module">
+import { LETTERS, MARK_PIXELS, SUMMARY, TAGLINE } from "./ui/banner.js";
 const KEY = "hopper-token";
 
 // Signed in from the workplace UI: a link whose address ends #signin=<token> (after any route,
@@ -49,6 +59,21 @@ const KEY = "hopper-token";
 }
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); for (const k of kids) e.append(k); return e; };
+// The block-letter name with the pixel mark beside it, the tagline and the summary: banner.ts's own, as hopper prints them.
+{
+  const NS = "http://www.w3.org/2000/svg";
+  const mark = document.createElementNS(NS, "svg");
+  for (const [k, v] of Object.entries({ viewBox: `0 0 ${MARK_PIXELS[0].length} ${MARK_PIXELS.length}`, "shape-rendering": "crispEdges", fill: "currentColor", "aria-hidden": "true" })) mark.setAttribute(k, v);
+  MARK_PIXELS.forEach((row, y) => [...row].forEach((pixel, x) => {
+    if (pixel !== "#") return;
+    const rect = document.createElementNS(NS, "rect");
+    for (const [k, v] of Object.entries({ x, y, width: 1, height: 1 })) rect.setAttribute(k, String(v));
+    mark.append(rect);
+  }));
+  $("wordmark").replaceChildren(el("pre", { "aria-hidden": "true" }, LETTERS), mark);
+  $("tagline").textContent = TAGLINE;
+  $("summary").textContent = SUMMARY;
+}
 async function call(method, path, body) {
   const res = await fetch(path, { method, headers: { authorization: `Bearer ${localStorage.getItem(KEY)}`, ...(body && { "content-type": "application/json" }) }, body: body && JSON.stringify(body) });
   if (res.status === 401) { localStorage.removeItem(KEY); show(); throw new Error("signed out"); }
