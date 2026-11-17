@@ -32,6 +32,10 @@ A task's `metadata.hostLabels` in waypoint, a list of agency host labels,
 becomes its request's host labels, so its agent starts only on a host carrying
 them all; a task whose `hostLabels` is not such a list waits, saying why.
 
+A task's `metadata.difficulty` (1 easy, 2 medium, 3 hard) becomes its worker's
+capability; without one agency uses the role's default, and a task whose
+`difficulty` is not 1, 2 or 3 waits, saying why.
+
 ## Run it
 
 Node 24 or later:

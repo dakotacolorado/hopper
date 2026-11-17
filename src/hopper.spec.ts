@@ -5,7 +5,7 @@ import { createServer } from "node:http";
 import { serveHopper } from "./server.ts";
 
 function fake(tasks: Record<string, Partial<Task>>) {
-  const requested: { role: string; taskId: string; labels: string[] }[] = [];
+  const requested: { role: string; taskId: string; labels: string[]; capability: number | null }[] = [];
   const assigned: Record<string, string> = {};
   let n = 0;
   const up: Upstreams = {
@@ -17,8 +17,8 @@ function fake(tasks: Record<string, Partial<Task>>) {
     async assign(taskId, name) {
       assigned[taskId] = name;
     },
-    async request(role, _brief, taskId, labels) {
-      requested.push({ role, taskId, labels });
+    async request(role, _brief, taskId, labels, capability) {
+      requested.push({ role, taskId, labels, capability });
       const id = `req${++n}0000000`;
       return { id, name: `${role}-${id.slice(0, 8)}` };
     },
@@ -106,7 +106,21 @@ test("asks for a worker on a host carrying the task's metadata.hostLabels; a mal
   assert.equal(h.list()[0]?.taskId, "bad", "it keeps its place");
 });
 
-test("sends labels to agency only when there are some", async () => {
+test("asks for a worker at the capability the task's metadata.difficulty names; a malformed one keeps its place", async () => {
+  const f = fake({ word: { metadata: { difficulty: "easy" } }, easy: { metadata: { difficulty: 1 } }, hard: { metadata: { difficulty: 3 } }, plain: {}, four: { metadata: { difficulty: 4 } } });
+  const h = new Hopper(":memory:", f.up);
+  h.limit = 5;
+  for (const id of ["word", "easy", "hard", "plain", "four"]) h.queue(id);
+  await h.tick();
+  assert.deepEqual(f.requested.map((r) => [r.taskId, r.capability]), [["easy", 1], ["hard", 3], ["plain", null]]);
+  for (const id of ["word", "four"]) {
+    assert.equal(h.get(id)?.state, "queued");
+    assert.equal(h.get(id)?.note, "waits: metadata.difficulty must be 1, 2 or 3");
+  }
+  assert.equal(h.list()[0]?.taskId, "word", "it keeps its place");
+});
+
+test("sends labels and capability to agency only when there are some", async () => {
   const bodies: Record<string, unknown>[] = [];
   const agency = createServer((req, res) => {
     let text = "";
@@ -120,11 +134,13 @@ test("sends labels to agency only when there are some", async () => {
   const url = `http://127.0.0.1:${(agency.address() as { port: number }).port}`;
   try {
     const up = httpUpstreams({ url, token: "w" }, { url, token: "a" });
-    await up.request("implementer", "brief", "t1", ["rtx-4090"]);
-    await up.request("implementer", "brief", "t2", []);
+    await up.request("implementer", "brief", "t1", ["rtx-4090"], null);
+    await up.request("implementer", "brief", "t2", [], null);
+    await up.request("implementer", "brief", "t3", [], 1);
     assert.deepEqual(bodies, [
       { role: "implementer", brief: "brief", item: "t1", labels: ["rtx-4090"] },
       { role: "implementer", brief: "brief", item: "t2" },
+      { role: "implementer", brief: "brief", item: "t3", capability: 1 },
     ]);
   } finally {
     agency.close();
