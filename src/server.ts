@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { Conflict, type Hopper } from "./hopper.ts";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { mcpServer } from "./mcp.ts";
 import { LETTERS_ONLY, MARK_ICON, MARK_PIXELS, MARK_SVG, SUMMARY, TAGLINE } from "./banner.ts";
 
 export interface About {
@@ -25,8 +27,20 @@ const BANNER_JS = Object.entries({ LETTERS: LETTERS_ONLY, MARK_PIXELS, MARK_SVG,
  *   DELETE /queue/{taskId}          take a queued task out
  *   PUT /limit {limit}              how many it keeps running at once
  *   POST /tick                      look now, rather than at the next tick
+ *   /mcp                            the MCP server, with a tool for each route above but /health
  */
 export function serveHopper(hopper: Hopper, token: string, about: About): Server {
+  const mcp = async (req: IncomingMessage, res: ServerResponse) => {
+    // Stateless: each request gets its own server and transport, answering JSON.
+    const body = req.method === "POST" ? await json(req) : undefined;
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(req.headers)) if (typeof v === "string") headers.set(k, v);
+    const request = new Request("http://hopper/mcp", { method: req.method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+    await mcpServer(about.version, hopper).connect(transport);
+    const answer = await transport.handleRequest(request, { parsedBody: body });
+    res.writeHead(answer.status, Object.fromEntries(answer.headers)).end(Buffer.from(await answer.arrayBuffer()));
+  };
   const authorized = (req: IncomingMessage) => {
     const given = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1] ?? "";
     const a = Buffer.from(given), b = Buffer.from(token);
@@ -46,6 +60,7 @@ export function serveHopper(hopper: Hopper, token: string, about: About): Server
       if (req.method === "GET" && url.pathname === "/ui/mark.svg") return void res.writeHead(200, { "content-type": "image/svg+xml; charset=utf-8" }).end(MARK_ICON);
       if (req.method === "GET" && url.pathname === "/ui/banner.js") return void res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" }).end(BANNER_JS);
       if (!authorized(req)) return fail(401, "The bearer token is missing or unknown.");
+      if (url.pathname === "/mcp") return await mcp(req, res);
       if (req.method === "GET" && url.pathname === "/queue") return send(200, { limit: hopper.limit, entries: hopper.list() });
       if (req.method === "POST" && url.pathname === "/queue") {
         const body = await json(req);
