@@ -1,0 +1,126 @@
+{
+  "instructions": "hopper: Feeds your queued tasks to agents, a few at a time, as they become ready.\n\nFor agents that manage a plan: queue its tasks here and hopper starts an agent on each, once waypoint says the task is ready and there is room under the limit.\n\n- A queued task starts in queue order, but only when waypoint says it is ready (open, nothing it depends on still open, nobody assigned); until then its entry says why it waits.\n- The limit is how many of hopper's tasks run at once; a task counts against it until waypoint shows it done or cancelled. A higher limit spends more tokens; 0 pauses hopper.\n- hopper looks every 30 seconds; queue_task and set_limit also look at once.",
+  "tools": [
+    {
+      "name": "list_queue",
+      "title": "List queue",
+      "description": "Returns the limit and every entry: queued ones first in order, then started, finished and dropped, each with its state and why it waits. hopper starts an agent on each queued task once waypoint says it is ready and there is room under the limit.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "queue_task",
+      "title": "Queue task",
+      "description": "Queues a waypoint task at the back, or before another queued one; queuing a task again moves it. hopper starts an agent on it once waypoint says it is ready and there is room under the limit.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The waypoint task's ID."
+          },
+          "role": {
+            "description": "The role of the agent started on it. Default implementer.",
+            "type": "string"
+          },
+          "before": {
+            "description": "The ID of a queued task to go in front of. Default: the back.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "dequeue_task",
+      "title": "Dequeue task",
+      "description": "Takes a queued task out of the queue, so no agent is started on it.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The waypoint task's ID."
+          }
+        },
+        "required": [
+          "taskId"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "set_limit",
+      "title": "Set limit",
+      "description": "Sets how many of hopper's tasks run at once, from 0 to 50; 0 pauses it. A higher limit starts more agents at once and so spends more tokens.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50,
+            "description": "How many tasks may run at once."
+          }
+        },
+        "required": [
+          "limit"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "tick",
+      "title": "Tick",
+      "description": "Looks at the queue now, rather than at the next tick, starting agents on tasks that are ready and fit under the limit. Returns the limit and entries.",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    }
+  ]
+}

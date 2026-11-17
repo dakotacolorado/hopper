@@ -57,8 +57,18 @@ HOPPER_TOKEN=… WAYPOINT_URL=… WAYPOINT_TOKEN=… AGENCY_URL=… AGENCY_TOKEN
 
 ## Use it
 
-The page at `/` does all of this. From a script, send
-`Authorization: Bearer $HOPPER_TOKEN`:
+The page at `/` does all of this. Agents that manage a plan can do the same
+through hopper's MCP server at `/mcp`: queue the plan's tasks, take them out,
+set how many run at once, and read the queue to see which are waiting and why.
+Its tools are `list_queue`, `queue_task`, `dequeue_task`, `set_limit` and
+`tick`, described in [`docs/MCP.md`](./docs/MCP.md) with the contract in
+[`mcp.json`](./mcp.json). Add it to Claude Code:
+
+```sh
+claude mcp add --transport http hopper "$HOPPER_URL/mcp" --header "Authorization: Bearer $HOPPER_TOKEN"
+```
+
+From a script, send `Authorization: Bearer $HOPPER_TOKEN` to the HTTP API:
 
 | | |
 | --- | --- |
@@ -82,6 +92,7 @@ curl -X POST "$HOPPER_URL/queue" -H "Authorization: Bearer $HOPPER_TOKEN" \
 npm install
 npm test
 npm run typecheck
+npm run spec   # regenerates mcp.json and docs/MCP.md after a tool changes
 ```
 
 ## License
